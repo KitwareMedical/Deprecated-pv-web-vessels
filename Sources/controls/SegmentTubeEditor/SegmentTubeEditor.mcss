@@ -1,0 +1,7 @@
+.outputLog {
+  width: 100%;
+  /* just some arbitrary height for now. User should be able to resize output log. */
+  height: 300px;
+  white-space: nowrap;
+  overflow: auto;
+}

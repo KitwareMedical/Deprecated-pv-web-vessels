@@ -3,7 +3,7 @@ import * as Glance from 'paraview-glance';
 import itkExtensionToIO from 'itk/extensionToIO';
 
 import Controls from './controls';
-import Rpc from './Rpc';
+import Rpc, { RpcClientHOC } from './Rpc';
 import SegmentTubeApi from './api/SegmentTube';
 import { getBackendHostAndPort } from './ElectronUtils';
 
@@ -11,7 +11,7 @@ import vtkITKImageReader from './helpers/ITKImageReader';
 
 import glanceConfig from './config/glanceProxyConfig';
 
-const { ElectronFileLoader } = Controls;
+const { ElectronFileLoader, SegmentTubeEditor } = Controls;
 
 function registerITKReader() {
   // ReaderFactory will lowercase all input filenames, so remove duplicate
@@ -41,8 +41,11 @@ function main(mountPoint) {
 
   registerITKReader();
 
+  const SegmentTubeComp = RpcClientHOC(SegmentTubeEditor, rpc.getClient());
+
   // overwrite the existing FileLoader
   Glance.registerControlTab('files', ElectronFileLoader, 5, 'file-text', true);
+  Glance.registerControlTab('segmentTube', SegmentTubeComp, 0, 'fork', true);
 
   Glance.createViewer(mountPoint, glanceConfig);
 }
