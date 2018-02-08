@@ -216,8 +216,8 @@ export default class SegmentTubeEditor extends React.Component {
 
     if (source) {
       const imageId =
-        source.getProxyId() in this.loadedImageIds
-          ? this.loadedImageIds[source.getProxyId]
+        proxyId in this.loadedImageIds
+          ? this.loadedImageIds[proxyId]
           : this.props.rpcClient.loadFile(source.getKey(FILEPATH_KEY));
 
       Promise.resolve(imageId)
