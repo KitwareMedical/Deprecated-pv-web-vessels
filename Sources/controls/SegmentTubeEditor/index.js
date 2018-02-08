@@ -79,6 +79,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.cleanupDeletedImages = this.cleanupDeletedImages.bind(this);
     this.appendServerLog = this.appendServerLog.bind(this);
     this.clearLog = this.clearLog.bind(this);
+    this.logError = this.logError.bind(this);
     this.setScale = this.setScale.bind(this);
     this.listenViewEvents = this.listenViewEvents.bind(this);
     this.segmentAtClick = this.segmentAtClick.bind(this);
@@ -139,10 +140,7 @@ export default class SegmentTubeEditor extends React.Component {
             }
             delete this.loadedImageIds[proxyId];
           })
-          .catch((error) => {
-            const message = `${error.data.exception}\n${error.data.trace}`;
-            this.appendServerLog(null, message);
-          });
+          .catch(this.logError);
       }
     });
   }
@@ -161,6 +159,13 @@ export default class SegmentTubeEditor extends React.Component {
     if (view.getProxyName() === 'View2D') {
       this.viewUnsubscribe = onViewClick(view, this.segmentAtClick);
     }
+  }
+
+  logError(error) {
+    const message = error.data
+      ? `${error.data.exception}\n${error.data.trace}`
+      : error;
+    this.appendServerLog(null, message);
   }
 
   segmentAtClick({ view, clickX, clickY }) {
@@ -201,10 +206,7 @@ export default class SegmentTubeEditor extends React.Component {
           console.log(result);
         }
       })
-      .catch((error) => {
-        const message = `${error.data.exception}\n${error.data.trace}`;
-        this.appendServerLog(null, message);
-      });
+      .catch(this.logError);
   }
 
   selectImage(proxyId) {
@@ -226,10 +228,7 @@ export default class SegmentTubeEditor extends React.Component {
             segmentEnabled: true,
           });
         })
-        .catch((error) => {
-          const message = `${error.data.exception}\n${error.data.trace}`;
-          this.appendServerLog(null, message);
-        });
+        .catch(this.logError);
     } else {
       this.setState({
         selectedImage: NO_IMAGE,
