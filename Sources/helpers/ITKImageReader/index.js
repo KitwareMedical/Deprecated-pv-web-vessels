@@ -56,25 +56,26 @@ function vtkITKImageReader(publicAPI, model) {
   model.classHierarchy.push('vtkITKImageReader');
 
   // Returns a promise to signal when image is ready
-  publicAPI.parseArrayBuffer = (arrayBuffer, filename) => {
+  publicAPI.parseArrayBuffer = (arrayBuffer) => {
     if (!arrayBuffer || arrayBuffer === model.rawDataBuffer) {
       return Promise.resolve();
     }
 
     model.rawDataBuffer = arrayBuffer;
-    model.filename = filename;
 
-    return readImageArrayBuffer(arrayBuffer, filename).then((itkImage) => {
-      const imageData = convertItkToVtkImage(itkImage);
-      model.output[0] = imageData;
+    return readImageArrayBuffer(arrayBuffer, model.fileName).then(
+      (itkImage) => {
+        const imageData = convertItkToVtkImage(itkImage);
+        model.output[0] = imageData;
 
-      // TODO should this be here or outside the promise?
-      publicAPI.modified();
-    });
+        // TODO should this be here or outside the promise?
+        publicAPI.modified();
+      }
+    );
   };
 
   publicAPI.requestData = (inData, outData) => {
-    publicAPI.parseArrayBuffer(model.rawDataBuffer, model.filename);
+    publicAPI.parseArrayBuffer(model.rawDataBuffer, model.fileName);
   };
 }
 
@@ -82,7 +83,9 @@ function vtkITKImageReader(publicAPI, model) {
 // Object factory
 // ----------------------------------------------------------------------------
 
-const DEFAULT_VALUES = {};
+const DEFAULT_VALUES = {
+  fileName: '',
+};
 
 // ----------------------------------------------------------------------------
 
@@ -92,6 +95,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   // Build VTK API
   macro.obj(publicAPI, model);
   macro.algo(publicAPI, model, 0, 1);
+  macro.setGet(publicAPI, model, ['fileName']);
 
   // vtkITKImageReader methods
   vtkITKImageReader(publicAPI, model);
