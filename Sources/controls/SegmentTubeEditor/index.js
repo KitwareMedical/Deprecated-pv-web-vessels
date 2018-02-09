@@ -5,6 +5,7 @@ import vtkCellPicker from 'vtk.js/Sources/Rendering/Core/CellPicker';
 
 import CollapsibleWidget from 'paraviewweb/src/React/Widgets/CollapsibleWidget';
 
+import vtkTubeSource from '../../helpers/TubeSource';
 import { FILEPATH_KEY } from '../../Constants';
 import { onServerStdout, onServerStderr } from '../../ElectronUtils';
 
@@ -69,8 +70,8 @@ export default class SegmentTubeEditor extends React.Component {
       segmentEnabled: false,
     };
 
-    // proxyId -> imageId
-    this.loadedImageIds = {};
+    // proxyId -> { imageId, tubeSource, tubeProxy }
+    this.loadedImageData = {};
     this.lifetimeUnsubscribes = [];
     this.viewUnsubscribes = [];
     this.picker = vtkCellPicker.newInstance();
@@ -115,6 +116,16 @@ export default class SegmentTubeEditor extends React.Component {
     }
   }
 
+  addTube(selectedImage, tube) {
+    if (selectedImage in this.loadedImageData) {
+      this.loadedImageData[selectedImage].tubeSource.addTube(
+        tube.points,
+        tube.radii
+      );
+      this.props.proxyManager.renderAllViews();
+    }
+  }
+
   appendServerLog(event, message) {
     console.log(message);
     this.setState(({ serverLog }) => ({
@@ -127,10 +138,10 @@ export default class SegmentTubeEditor extends React.Component {
       this.props.proxyManager.getSources().map((s) => s.getProxyId())
     );
 
-    Object.keys(this.loadedImageIds).forEach((proxyId) => {
+    Object.keys(this.loadedImageData).forEach((proxyId) => {
       if (!proxyIds.has(proxyId)) {
         this.props.rpcClient
-          .unloadImage(this.loadedImageIds[proxyId])
+          .unloadImage(this.loadedImageData[proxyId].imageId)
           .then(() => {
             if (this.state.selectedImage === proxyId) {
               this.setState({
@@ -138,7 +149,7 @@ export default class SegmentTubeEditor extends React.Component {
                 segmentEnabled: false,
               });
             }
-            delete this.loadedImageIds[proxyId];
+            delete this.loadedImageData[proxyId];
           })
           .catch(this.logError);
       }
@@ -189,8 +200,17 @@ export default class SegmentTubeEditor extends React.Component {
     // TODO maybe utilize the pick list?
     const { actors, cellIJK } = this.picker.get('actors', 'cellIJK');
     if (actors.indexOf(selectedActor) >= 0) {
-      const imgId = this.loadedImageIds[this.state.selectedImage];
-      this.segmentTube(imgId, cellIJK);
+      // Cache the selected image b/c the image may be changed during segmentation.
+      const selectedImage = this.state.selectedImage;
+      const imgId = this.loadedImageData[selectedImage].imageId;
+
+      this.segmentTube(imgId, cellIJK)
+        .then((tube) => {
+          if (tube.uid !== NO_TUBE) {
+            this.addTube(selectedImage, tube);
+          }
+        })
+        .catch(this.logError);
     }
   }
 
@@ -198,15 +218,7 @@ export default class SegmentTubeEditor extends React.Component {
     const params = {
       scale: Number(this.state.scaleText),
     };
-
-    this.props.rpcClient
-      .segmentTube(imgId, ijk, params)
-      .then((result) => {
-        if (result.uid !== NO_TUBE) {
-          console.log(result);
-        }
-      })
-      .catch(this.logError);
+    return this.props.rpcClient.segmentTube(imgId, ijk, params);
   }
 
   selectImage(proxyId) {
@@ -216,13 +228,34 @@ export default class SegmentTubeEditor extends React.Component {
 
     if (source) {
       const imageId =
-        proxyId in this.loadedImageIds
-          ? this.loadedImageIds[proxyId]
+        proxyId in this.loadedImageData
+          ? this.loadedImageData[proxyId].imageId
           : this.props.rpcClient.loadFile(source.getKey(FILEPATH_KEY));
 
       Promise.resolve(imageId)
         .then((id) => {
-          this.loadedImageIds[proxyId] = id;
+          // create loaded image data for selected image
+          if (!(proxyId in this.loadedImageData)) {
+            const tubeSource = vtkTubeSource.newInstance();
+            const tubeProxy = this.props.proxyManager.createProxy(
+              'Sources',
+              'TrivialProducer',
+              {
+                name: `Tubes for ${source.getName()}`,
+                type: 'vtkTubes',
+              }
+            );
+
+            tubeProxy.setInputAlgorithm(tubeSource);
+            this.props.proxyManager.createRepresentationInAllViews(tubeProxy);
+
+            this.loadedImageData[proxyId] = {
+              imageId: id,
+              tubeSource,
+              tubeProxy,
+            };
+          }
+
           this.setState({
             selectedImage: proxyId,
             segmentEnabled: true,
