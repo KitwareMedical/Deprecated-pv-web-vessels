@@ -1,0 +1,3 @@
+[submodule "Dependencies/wslink"]
+	path = Dependencies/wslink
+	url = https://github.com/Kitware/wslink.git
