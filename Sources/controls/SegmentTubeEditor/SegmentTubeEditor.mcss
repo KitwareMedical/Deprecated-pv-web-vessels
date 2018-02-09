@@ -5,3 +5,33 @@
   white-space: nowrap;
   overflow: auto;
 }
+
+.tubeTree {
+  width: 100%;
+  /* just some arbitrary height for now. */
+  height: 300px;
+  overflow: auto;
+  border: 1px solid #aaa;
+  padding: 10px;
+}
+
+.tubeTreeTable {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+.tubeRow {
+  border: 1px solid #ccc;
+  border-left: none;
+  border-right: none;
+}
+
+.tubeRow:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.actionIcon {
+  height: 1em;
+  margin: 0 5px;
+}

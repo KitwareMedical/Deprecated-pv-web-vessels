@@ -9,6 +9,7 @@ import vtkTubeSource from '../../helpers/TubeSource';
 import { FILEPATH_KEY } from '../../Constants';
 import { onServerStdout, onServerStderr } from '../../ElectronUtils';
 
+import TubeTable from './TubeTable';
 import style from './SegmentTubeEditor.mcss';
 
 const NO_IMAGE = -999;
@@ -68,6 +69,7 @@ export default class SegmentTubeEditor extends React.Component {
       serverLog: '',
       scaleText: String(DEFAULT_SCALE),
       segmentEnabled: false,
+      tubes: [],
     };
 
     // proxyId -> { imageId, tubeSource, tubeProxy }
@@ -123,6 +125,10 @@ export default class SegmentTubeEditor extends React.Component {
         tube.radii
       );
       this.props.proxyManager.renderAllViews();
+
+      this.setState(({ tubes }) => ({
+        tubes: [...tubes, tube],
+      }));
     }
   }
 
@@ -317,6 +323,9 @@ export default class SegmentTubeEditor extends React.Component {
             onChange={(ev) => this.setScale(ev.target.value)}
           />
         </section>
+        <CollapsibleWidget title="Tubes">
+          <TubeTable tubes={this.state.tubes} />
+        </CollapsibleWidget>
         <CollapsibleWidget title="Output log">
           <textarea className={style.outputLog} value={this.state.serverLog} />
           <input type="button" value="Clear log" onClick={this.clearLog} />
