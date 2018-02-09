@@ -26,6 +26,15 @@ export function onServerStderr(callback) {
   };
 }
 
+export function openSaveDialog() {
+  return new Promise((resolve, reject) => {
+    remote.dialog.showSaveDialog(
+      { filters: [{ name: 'TRE', extensions: ['tre'] }] },
+      resolve
+    );
+  });
+}
+
 export default {
   getBackendHostAndPort,
 };

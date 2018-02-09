@@ -145,8 +145,24 @@ class AppProtocol(LinkProtocol):
             points, radii = get_tube_points(tube)
             return {
                 'uid': tubeUID,
+                'parent': -1, # initially no parent
                 'points': points,
                 'radii': radii,
             }
         else:
             return { 'uid': NO_TUBE }
+
+    @register('app.save_tubes')
+    def save_tubes(self, imgId, filename):
+        if imgId not in self.loadedImages:
+            return
+
+        tubes = self.loadedImages[imgId]['tubes']
+        group = itk.GroupSpatialObject[3].New()
+        for tubeId in tubes:
+            group.AddSpatialObject(tubes[tubeId])
+
+        writer = itk.SpatialObjectWriter[3].New()
+        writer.SetFileName(filename)
+        writer.SetInput(group)
+        writer.Update()

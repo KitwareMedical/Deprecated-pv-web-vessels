@@ -7,7 +7,11 @@ import CollapsibleWidget from 'paraviewweb/src/React/Widgets/CollapsibleWidget';
 
 import vtkTubeSource from '../../helpers/TubeSource';
 import { FILEPATH_KEY } from '../../Constants';
-import { onServerStdout, onServerStderr } from '../../ElectronUtils';
+import {
+  onServerStdout,
+  onServerStderr,
+  openSaveDialog,
+} from '../../ElectronUtils';
 
 import TubeTable from './TubeTable';
 import style from './SegmentTubeEditor.mcss';
@@ -86,6 +90,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.setScale = this.setScale.bind(this);
     this.listenViewEvents = this.listenViewEvents.bind(this);
     this.segmentAtClick = this.segmentAtClick.bind(this);
+    this.saveTubes = this.saveTubes.bind(this);
   }
 
   componentDidMount() {
@@ -124,10 +129,11 @@ export default class SegmentTubeEditor extends React.Component {
         tube.points,
         tube.radii
       );
+      this.loadedImageData[selectedImage].tubes.push(tube);
       this.props.proxyManager.renderAllViews();
 
       this.setState(({ tubes }) => ({
-        tubes: [...tubes, tube],
+        tubes: this.loadedImageData[selectedImage].tubes,
       }));
     }
   }
@@ -183,6 +189,18 @@ export default class SegmentTubeEditor extends React.Component {
       ? `${error.data.exception}\n${error.data.trace}`
       : error;
     this.appendServerLog(null, message);
+  }
+
+  saveTubes() {
+    console.log(this);
+    openSaveDialog()
+      .then((filename) =>
+        this.props.rpcClient.saveTubes(
+          this.loadedImageData[this.state.selectedImage].imageId,
+          filename
+        )
+      )
+      .catch(this.logError);
   }
 
   segmentAtClick({ view, clickX, clickY }) {
@@ -259,6 +277,7 @@ export default class SegmentTubeEditor extends React.Component {
               imageId: id,
               tubeSource,
               tubeProxy,
+              tubes: [],
             };
           }
 
@@ -325,6 +344,7 @@ export default class SegmentTubeEditor extends React.Component {
         </section>
         <CollapsibleWidget title="Tubes">
           <TubeTable tubes={this.state.tubes} />
+          <input type="button" value="Save" onClick={this.saveTubes} />
         </CollapsibleWidget>
         <CollapsibleWidget title="Output log">
           <textarea className={style.outputLog} value={this.state.serverLog} />
