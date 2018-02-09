@@ -10,6 +10,9 @@ const sourcePath = path.join(__dirname, './Sources');
 const outputPath = path.join(__dirname, './Distribution');
 const eslintrcPath = path.join(__dirname, './.eslintrc.js');
 
+const vtkRules = require('vtk.js/Utilities/config/dependency').webpack.v2;
+const pvwRules = require('./Utilities/rules/paraviewweb');
+
 module.exports = (env) => {
   if (env && env.release) {
     plugins.push(
@@ -105,7 +108,10 @@ module.exports = (env) => {
             configFile: eslintrcPath,
           },
         },
-      ],
+      ].concat(
+        vtkRules,
+        pvwRules,
+      ),
     },
     resolve: {
       modules: [path.resolve(__dirname, 'node_modules'), sourcePath],
