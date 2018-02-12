@@ -166,3 +166,13 @@ class AppProtocol(LinkProtocol):
         writer.SetFileName(filename)
         writer.SetInput(group)
         writer.Update()
+
+    @register('app.delete_tube')
+    def delete_tube(self, imgId, tubeUid):
+        if imgId not in self.loadedImages:
+            return
+
+        loadedData = self.loadedImages[imgId]
+        tubeToDelete = loadedData['tubes'][tubeUid]
+        loadedData['segmenter'].DeleteTube(tubeToDelete)
+        del loadedData['tubes'][tubeUid]

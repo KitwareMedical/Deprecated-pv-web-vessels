@@ -102,6 +102,11 @@ function vtkTubeSource(publicAPI, model) {
     }
   };
 
+  publicAPI.deleteTube = (tubeUid) => {
+    model.tubes = model.tubes.filter((tube) => tube.uid !== tubeUid);
+    publicAPI.modified();
+  };
+
   publicAPI.requestData = (inData, outData) => {
     model.output[0] = makePolyData(publicAPI, model);
   };

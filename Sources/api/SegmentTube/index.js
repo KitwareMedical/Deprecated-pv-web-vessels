@@ -3,4 +3,5 @@ export default (func, pubSub) => ({
   unloadImage: func('app.unload_image'),
   segmentTube: func('app.segment'),
   saveTubes: func('app.save_tubes'),
+  deleteTube: func('app.delete_tube'),
 });

@@ -91,6 +91,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.listenViewEvents = this.listenViewEvents.bind(this);
     this.segmentAtClick = this.segmentAtClick.bind(this);
     this.saveTubes = this.saveTubes.bind(this);
+    this.deleteTube = this.deleteTube.bind(this);
     this.showHideTube = this.showHideTube.bind(this);
   }
 
@@ -170,6 +171,18 @@ export default class SegmentTubeEditor extends React.Component {
 
   clearLog() {
     this.setState({ serverLog: '' });
+  }
+
+  deleteTube(tubeUid) {
+    const imageData = this.loadedImageData[this.state.selectedImage];
+    return this.props.rpcClient
+      .deleteTube(imageData.imageId, tubeUid)
+      .then(() => {
+        imageData.tubeSource.deleteTube(tubeUid);
+        this.setState({ tubes: imageData.tubeSource.getTubes() });
+        this.props.proxyManager.renderAllViews();
+      })
+      .catch(this.logError);
   }
 
   listenViewEvents() {
@@ -352,6 +365,7 @@ export default class SegmentTubeEditor extends React.Component {
         <CollapsibleWidget title="Tubes">
           <TubeTable
             tubes={this.state.tubes}
+            onDeleteTube={this.deleteTube}
             onShowHideTube={this.showHideTube}
           />
           <input type="button" value="Save" onClick={this.saveTubes} />
