@@ -4,9 +4,11 @@ import vtkPoints from 'vtk.js/Sources/Common/Core/Points';
 import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
 import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 
+const { vtkErrorMacro } = macro;
+
 function makePolyData(publicAPI, model) {
-  const totalLength = model.points.reduce(
-    (length, points) => length + points.length,
+  const totalPointLength = model.tubes.reduce(
+    (length, tube) => length + tube.points.length,
     0
   );
 
@@ -15,23 +17,23 @@ function makePolyData(publicAPI, model) {
     dataType: VtkDataTypes.FLOAT,
     numberOfComponents: 3,
   });
-  points.setNumberOfPoints(totalLength);
+  points.setNumberOfPoints(totalPointLength);
 
-  const pointData = new Float32Array(3 * totalLength);
-  const lines = new Uint32Array(totalLength + 1);
+  const pointData = new Float32Array(3 * totalPointLength);
+  const lines = new Uint32Array(totalPointLength + 1);
 
-  for (let i = 0, pi = 0, li = 0; i < model.points.length; ++i) {
-    lines[li++] = model.points[i].length;
-    for (let j = 0; j < model.points[i].length; ++j, ++pi) {
-      pointData[3 * pi + 0] = model.points[i][j][0];
-      pointData[3 * pi + 1] = model.points[i][j][1];
-      pointData[3 * pi + 2] = model.points[i][j][2];
+  for (let i = 0, pi = 0, li = 0; i < model.tubes.length; ++i) {
+    lines[li++] = model.tubes[i].points.length;
+    for (let j = 0; j < model.tubes[i].points.length; ++j, ++pi) {
+      pointData[3 * pi + 0] = model.tubes[i].points[j][0];
+      pointData[3 * pi + 1] = model.tubes[i].points[j][1];
+      pointData[3 * pi + 2] = model.tubes[i].points[j][2];
       lines[li++] = pi;
     }
   }
 
   const scalarsData = new Float32Array(
-    model.radii.reduce((combined, radii) => radii.concat(combined), [])
+    model.tubes.reduce((combined, tube) => tube.radii.concat(combined), [])
   );
   const scalars = vtkDataArray.newInstance({
     name: 'Radius',
@@ -54,15 +56,26 @@ function vtkTubeSource(publicAPI, model) {
   // Set our className
   model.classHierarchy.push('vtkTubeSource');
 
-  model.points = model.points.slice();
-  model.radii = model.radii.slice();
+  model.tubes = model.tubes.slice();
 
-  publicAPI.addTube = (points, radii) => {
-    model.points.push(points);
-    model.radii.push(radii);
+  publicAPI.addTube = (tubeParam) => {
+    const tube = Object.assign(
+      {
+        points: [],
+        radii: [],
+        visible: true,
+      },
+      tubeParam
+    );
+
+    if (tube.points.length !== tube.radii.length) {
+      vtkErrorMacro('Added tube has mismatched points/radii lengths');
+      return null;
+    }
+    model.tubes.push(tube);
 
     publicAPI.modified();
-    return model.points.length - 1;
+    return model.tubes.length - 1;
   };
 
   publicAPI.requestData = (inData, outData) => {
@@ -75,8 +88,7 @@ function vtkTubeSource(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  points: [],
-  radii: [],
+  tubes: [],
 };
 
 // ----------------------------------------------------------------------------
@@ -86,6 +98,7 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   macro.obj(publicAPI, model);
   macro.algo(publicAPI, model, 0, 1);
+  macro.get(publicAPI, model, ['tubes']);
 
   // Object specific methods
   vtkTubeSource(publicAPI, model);

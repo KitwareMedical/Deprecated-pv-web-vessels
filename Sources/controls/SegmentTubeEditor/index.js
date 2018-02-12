@@ -125,16 +125,15 @@ export default class SegmentTubeEditor extends React.Component {
 
   addTube(selectedImage, tube) {
     if (selectedImage in this.loadedImageData) {
-      this.loadedImageData[selectedImage].tubeSource.addTube(
-        tube.points,
-        tube.radii
-      );
-      this.loadedImageData[selectedImage].tubes.push(tube);
+      const imageData = this.loadedImageData[selectedImage];
+      imageData.tubeSource.addTube(tube);
+
+      // render the added tubes
       this.props.proxyManager.renderAllViews();
 
-      this.setState(({ tubes }) => ({
-        tubes: this.loadedImageData[selectedImage].tubes,
-      }));
+      this.setState({
+        tubes: imageData.tubeSource.getTubes(),
+      });
     }
   }
 
@@ -192,7 +191,6 @@ export default class SegmentTubeEditor extends React.Component {
   }
 
   saveTubes() {
-    console.log(this);
     openSaveDialog()
       .then((filename) =>
         this.props.rpcClient.saveTubes(
@@ -277,13 +275,13 @@ export default class SegmentTubeEditor extends React.Component {
               imageId: id,
               tubeSource,
               tubeProxy,
-              tubes: [],
             };
           }
 
           this.setState({
             selectedImage: proxyId,
             segmentEnabled: true,
+            tubes: this.loadedImageData[proxyId].tubeSource.getTubes(),
           });
         })
         .catch(this.logError);
