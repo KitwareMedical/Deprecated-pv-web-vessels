@@ -22,7 +22,7 @@ function makePolyData(publicAPI, model) {
   points.setNumberOfPoints(totalPointLength);
 
   const pointData = new Float32Array(3 * totalPointLength);
-  const lines = new Uint32Array(totalPointLength + 1);
+  const lines = new Uint32Array(totalPointLength + visibleTubes.length);
 
   for (let i = 0, pi = 0, li = 0; i < visibleTubes.length; ++i) {
     lines[li++] = visibleTubes[i].points.length;
