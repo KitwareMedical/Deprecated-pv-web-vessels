@@ -7,7 +7,9 @@ import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 const { vtkErrorMacro } = macro;
 
 function makePolyData(publicAPI, model) {
-  const totalPointLength = model.tubes.reduce(
+  const visibleTubes = model.tubes.filter((tube) => tube.visible);
+
+  const totalPointLength = visibleTubes.reduce(
     (length, tube) => length + tube.points.length,
     0
   );
@@ -22,18 +24,18 @@ function makePolyData(publicAPI, model) {
   const pointData = new Float32Array(3 * totalPointLength);
   const lines = new Uint32Array(totalPointLength + 1);
 
-  for (let i = 0, pi = 0, li = 0; i < model.tubes.length; ++i) {
-    lines[li++] = model.tubes[i].points.length;
-    for (let j = 0; j < model.tubes[i].points.length; ++j, ++pi) {
-      pointData[3 * pi + 0] = model.tubes[i].points[j][0];
-      pointData[3 * pi + 1] = model.tubes[i].points[j][1];
-      pointData[3 * pi + 2] = model.tubes[i].points[j][2];
+  for (let i = 0, pi = 0, li = 0; i < visibleTubes.length; ++i) {
+    lines[li++] = visibleTubes[i].points.length;
+    for (let j = 0; j < visibleTubes[i].points.length; ++j, ++pi) {
+      pointData[3 * pi + 0] = visibleTubes[i].points[j][0];
+      pointData[3 * pi + 1] = visibleTubes[i].points[j][1];
+      pointData[3 * pi + 2] = visibleTubes[i].points[j][2];
       lines[li++] = pi;
     }
   }
 
   const scalarsData = new Float32Array(
-    model.tubes.reduce((combined, tube) => tube.radii.concat(combined), [])
+    visibleTubes.reduce((combined, tube) => tube.radii.concat(combined), [])
   );
   const scalars = vtkDataArray.newInstance({
     name: 'Radius',
@@ -76,6 +78,28 @@ function vtkTubeSource(publicAPI, model) {
 
     publicAPI.modified();
     return model.tubes.length - 1;
+  };
+
+  publicAPI.getTubeVisibility = (tubeUid) => {
+    for (let i = 0; i < model.tubes.length; ++i) {
+      if (model.tubes[i].uid === tubeUid) {
+        return model.tubes[i].visible;
+      }
+    }
+    return false;
+  };
+
+  publicAPI.setTubeVisibility = (tubeUid, visible) => {
+    for (let i = 0; i < model.tubes.length; ++i) {
+      if (
+        model.tubes[i].uid === tubeUid &&
+        model.tubes[i].visible !== visible
+      ) {
+        model.tubes[i].visible = visible;
+        publicAPI.modified();
+        break;
+      }
+    }
   };
 
   publicAPI.requestData = (inData, outData) => {

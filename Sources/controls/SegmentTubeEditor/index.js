@@ -91,6 +91,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.listenViewEvents = this.listenViewEvents.bind(this);
     this.segmentAtClick = this.segmentAtClick.bind(this);
     this.saveTubes = this.saveTubes.bind(this);
+    this.showHideTube = this.showHideTube.bind(this);
   }
 
   componentDidMount() {
@@ -289,8 +290,16 @@ export default class SegmentTubeEditor extends React.Component {
       this.setState({
         selectedImage: NO_IMAGE,
         segmentEnabled: false,
+        tubes: [],
       });
     }
+  }
+
+  showHideTube(tubeUid) {
+    const tubeSrc = this.loadedImageData[this.state.selectedImage].tubeSource;
+    tubeSrc.setTubeVisibility(tubeUid, !tubeSrc.getTubeVisibility(tubeUid));
+    this.setState({ tubes: tubeSrc.getTubes() });
+    this.props.proxyManager.renderAllViews();
   }
 
   render() {
@@ -341,7 +350,10 @@ export default class SegmentTubeEditor extends React.Component {
           />
         </section>
         <CollapsibleWidget title="Tubes">
-          <TubeTable tubes={this.state.tubes} />
+          <TubeTable
+            tubes={this.state.tubes}
+            onShowHideTube={this.showHideTube}
+          />
           <input type="button" value="Save" onClick={this.saveTubes} />
         </CollapsibleWidget>
         <CollapsibleWidget title="Output log">
