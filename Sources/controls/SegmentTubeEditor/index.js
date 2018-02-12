@@ -80,6 +80,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.loadedImageData = {};
     this.lifetimeUnsubscribes = [];
     this.viewUnsubscribes = [];
+    this.tubeSourceUnsubscribe = null;
     this.picker = vtkCellPicker.newInstance();
 
     this.selectImage = this.selectImage.bind(this);
@@ -129,13 +130,6 @@ export default class SegmentTubeEditor extends React.Component {
     if (selectedImage in this.loadedImageData) {
       const imageData = this.loadedImageData[selectedImage];
       imageData.tubeSource.addTube(tube);
-
-      // render the added tubes
-      this.props.proxyManager.renderAllViews();
-
-      this.setState({
-        tubes: imageData.tubeSource.getTubes(),
-      });
     }
   }
 
@@ -177,11 +171,7 @@ export default class SegmentTubeEditor extends React.Component {
     const imageData = this.loadedImageData[this.state.selectedImage];
     return this.props.rpcClient
       .deleteTube(imageData.imageId, tubeUid)
-      .then(() => {
-        imageData.tubeSource.deleteTube(tubeUid);
-        this.setState({ tubes: imageData.tubeSource.getTubes() });
-        this.props.proxyManager.renderAllViews();
-      })
+      .then(() => imageData.tubeSource.deleteTube(tubeUid))
       .catch(this.logError);
   }
 
@@ -258,9 +248,19 @@ export default class SegmentTubeEditor extends React.Component {
   }
 
   selectImage(proxyId) {
+    if (proxyId === this.state.selectedImage) {
+      return;
+    }
+
     const source = this.props.proxyManager
       .getSources()
       .find((s) => s.getProxyId() === proxyId);
+
+    // unsubscribe any existing tube source
+    if (this.tubeSourceUnsubscribe) {
+      this.tubeSourceUnsubscribe.unsubscribe();
+      this.tubeSourceUnsubscribe = null;
+    }
 
     if (source) {
       const imageId =
@@ -292,10 +292,18 @@ export default class SegmentTubeEditor extends React.Component {
             };
           }
 
+          const tubeSource = this.loadedImageData[proxyId].tubeSource;
+
+          // update state and views every time the tubes change
+          this.tubeSourceUnsubscribe = tubeSource.onModified(() => {
+            this.setState({ tubes: tubeSource.getTubes() });
+            this.props.proxyManager.renderAllViews();
+          });
+
           this.setState({
             selectedImage: proxyId,
             segmentEnabled: true,
-            tubes: this.loadedImageData[proxyId].tubeSource.getTubes(),
+            tubes: tubeSource.getTubes(),
           });
         })
         .catch(this.logError);
@@ -311,8 +319,6 @@ export default class SegmentTubeEditor extends React.Component {
   showHideTube(tubeUid) {
     const tubeSrc = this.loadedImageData[this.state.selectedImage].tubeSource;
     tubeSrc.setTubeVisibility(tubeUid, !tubeSrc.getTubeVisibility(tubeUid));
-    this.setState({ tubes: tubeSrc.getTubes() });
-    this.props.proxyManager.renderAllViews();
   }
 
   render() {
