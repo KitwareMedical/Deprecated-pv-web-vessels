@@ -196,12 +196,14 @@ export default class SegmentTubeEditor extends React.Component {
 
   saveTubes() {
     openSaveDialog()
-      .then((filename) =>
-        this.props.rpcClient.saveTubes(
-          this.loadedImageData[this.state.selectedImage].imageId,
-          filename
-        )
-      )
+      .then((filename) => {
+        if (filename) {
+          this.props.rpcClient.saveTubes(
+            this.loadedImageData[this.state.selectedImage].imageId,
+            filename
+          );
+        }
+      })
       .catch(this.logError);
   }
 
@@ -374,7 +376,12 @@ export default class SegmentTubeEditor extends React.Component {
             onDeleteTube={this.deleteTube}
             onShowHideTube={this.showHideTube}
           />
-          <input type="button" value="Save" onClick={this.saveTubes} />
+          <input
+            type="button"
+            value="Save"
+            disabled={this.state.selectedImage === NO_IMAGE}
+            onClick={this.saveTubes}
+          />
         </CollapsibleWidget>
         <CollapsibleWidget title="Output log">
           <textarea className={style.outputLog} value={this.state.serverLog} />
