@@ -16,10 +16,10 @@
     "electron": "^1.8.2",
     "get-port": "^3.2.0",
     "itk": "^7.1.0",
-    "paraview-glance": "^1.1.6",
+    "paraview-glance": "^1.1.8",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
-    "vtk.js": "^5.15.22",
+    "vtk.js": "^6.2.4",
     "wslink": "file:./Dependencies/wslink/js"
   },
   "devDependencies": {

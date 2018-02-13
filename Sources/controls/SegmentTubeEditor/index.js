@@ -20,24 +20,17 @@ const NO_IMAGE = -999;
 const NO_TUBE = -1;
 const DEFAULT_SCALE = 2.0;
 
-// TODO this will be deprecated in a future vtkjs release
-function get2DPosition(interactor) {
-  const pos = interactor.getEventPosition(interactor.getPointerIndex());
-  const bounds = interactor.getCanvas().getBoundingClientRect();
-  return [pos.x - bounds.left, pos.y + bounds.top];
-}
-
 function onViewClick(view, callback) {
   let clickPos = [0, 0];
   let time = 0;
 
-  function press() {
-    clickPos = get2DPosition(view.getInteractor());
+  function press(ev) {
+    clickPos = [ev.position.x, ev.position.y];
     time = +new Date();
   }
 
-  function release() {
-    const [nx, ny] = get2DPosition(view.getInteractor());
+  function release(ev) {
+    const [nx, ny] = [ev.position.x, ev.position.y];
     const [ox, oy] = clickPos;
     if (
       (nx - ox) ** 2 + (ny - oy) ** 2 <= 3 * 3 &&
