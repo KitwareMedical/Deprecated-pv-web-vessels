@@ -1,5 +1,3 @@
-import React from 'react';
-
 import SmartConnect from 'wslink/src/SmartConnect';
 
 // Only try to connect 20 times
@@ -13,12 +11,6 @@ function defer() {
     deferred.reject = reject;
   });
   return deferred;
-}
-
-function RpcClientHOC(Component, client) {
-  return function ComponentWrapper(props) {
-    return <Component rpcClient={client} {...props} />;
-  };
 }
 
 class Client {
@@ -101,5 +93,4 @@ class Rpc {
   }
 }
 
-export { RpcClientHOC };
 export default Rpc;

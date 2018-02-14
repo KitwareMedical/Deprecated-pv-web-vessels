@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { ipcRenderer, remote } from 'electron';
 
 import IpcConstants from '../Electron/IpcConstants';
@@ -35,6 +37,34 @@ export function openSaveDialog() {
   });
 }
 
+export function getCommandLineArgs() {
+  // ignore the first two args, which are "electron" and "."
+  return remote.process.argv.slice(2);
+}
+
+// Need to disable transpilation for this to work.
+// Electron supports class keywords, so don't want to
+// transpile.
+class CustomFile extends File {
+  constructor(bits, name, options = {}) {
+    super(bits, name, options);
+    this.realpath = options.path || '';
+  }
+
+  // Override actual path with realpath
+  get path() {
+    return this.realpath;
+  }
+}
+
+export function openAsFile(file) {
+  return new CustomFile([fs.readFileSync(file).buffer], path.basename(file), {
+    path: path.resolve(file),
+  });
+}
+
 export default {
   getBackendHostAndPort,
+  getCommandLineArgs,
+  openAsFile,
 };

@@ -55,7 +55,10 @@ module.exports = (env) => {
       rules: [
         {
           test: /\.js$/,
-          exclude: /node_modules/,
+          exclude: [
+            /node_modules/,
+            /ElectronUtils\.js/,
+          ],
           use: [{ loader: 'babel-loader', options: { presets: ['env', 'react'] } }],
         },
         {
@@ -124,6 +127,8 @@ module.exports = (env) => {
       (function() {
         const IGNORES = [
           'electron',
+          'fs',
+          'path',
         ];
         return function(context, request, callback) {
           if (IGNORES.indexOf(request) >= 0) {

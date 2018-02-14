@@ -3,9 +3,14 @@ import * as Glance from 'paraview-glance';
 import itkExtensionToIO from 'itk/extensionToIO';
 
 import Controls from './controls';
-import Rpc, { RpcClientHOC } from './Rpc';
+import Rpc from './Rpc';
 import SegmentTubeApi from './api/SegmentTube';
-import { getBackendHostAndPort } from './ElectronUtils';
+import {
+  getBackendHostAndPort,
+  getCommandLineArgs,
+  openAsFile,
+} from './ElectronUtils';
+import { ReactPropsHOC } from './helpers/ReactPropsHOC';
 
 import vtkITKImageReader from './helpers/ITKImageReader';
 
@@ -41,11 +46,16 @@ function main(mountPoint) {
 
   registerITKReader();
 
-  const SegmentTubeComp = RpcClientHOC(SegmentTubeEditor, rpc.getClient());
+  const initialFiles = getCommandLineArgs().map((file) => openAsFile(file));
+
+  const FileLoader = ReactPropsHOC(ElectronFileLoader, { initialFiles });
+  const SegmentEditor = ReactPropsHOC(SegmentTubeEditor, {
+    rpcClient: rpc.getClient(),
+  });
 
   // overwrite the existing FileLoader
-  Glance.registerControlTab('files', ElectronFileLoader, 5, 'file-text', true);
-  Glance.registerControlTab('segmentTube', SegmentTubeComp, 0, 'fork', true);
+  Glance.registerControlTab('files', FileLoader, 5, 'file-text', true);
+  Glance.registerControlTab('segmentTube', SegmentEditor, 0, 'fork', true);
 
   Glance.createViewer(mountPoint, glanceConfig);
 }
