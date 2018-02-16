@@ -77,7 +77,7 @@ export default class SegmentTubeEditor extends React.Component {
     this.picker = vtkCellPicker.newInstance();
 
     this.selectImage = this.selectImage.bind(this);
-    this.cleanupDeletedImages = this.cleanupDeletedImages.bind(this);
+    this.onProxyRegistrationChange = this.onProxyRegistrationChange.bind(this);
     this.appendServerLog = this.appendServerLog.bind(this);
     this.clearLog = this.clearLog.bind(this);
     this.logError = this.logError.bind(this);
@@ -95,7 +95,7 @@ export default class SegmentTubeEditor extends React.Component {
       // TODO should there be events pertaining to addition/deletion of sources?
       // This also has the issue of not detecting when a non-active source is
       // deleted...
-      proxyManager.onActiveSourceChange(this.cleanupDeletedImages),
+      proxyManager.onProxyRegistrationChange(this.onProxyRegistrationChange),
       proxyManager.onActiveViewChange(this.listenViewEvents),
       onServerStdout(this.appendServerLog),
       onServerStderr(this.appendServerLog),
@@ -109,6 +109,25 @@ export default class SegmentTubeEditor extends React.Component {
     if (this.viewUnsubscribe) {
       this.viewUnsubscribe.unsubscribe();
       this.viewUnsubscribe = null;
+    }
+  }
+
+  onProxyRegistrationChange(changeInfo) {
+    if (changeInfo.action === 'unregister') {
+      if (this.loadedImageData[changeInfo.proxyId]) {
+        this.props.rpcClient
+          .unloadImage(this.loadedImageData[changeInfo.proxyId].imageId)
+          .then(() => {
+            if (this.state.selectedImage === changeInfo.proxyId) {
+              this.setState({
+                selectedImage: NO_IMAGE,
+                segmentEnabled: false,
+              });
+            }
+            delete this.loadedImageData[changeInfo.proxyId];
+          })
+          .catch(this.logError);
+      }
     }
   }
 
@@ -131,29 +150,6 @@ export default class SegmentTubeEditor extends React.Component {
     this.setState(({ serverLog }) => ({
       serverLog: serverLog + message,
     }));
-  }
-
-  cleanupDeletedImages() {
-    const proxyIds = new Set(
-      this.props.proxyManager.getSources().map((s) => s.getProxyId())
-    );
-
-    Object.keys(this.loadedImageData).forEach((proxyId) => {
-      if (!proxyIds.has(proxyId)) {
-        this.props.rpcClient
-          .unloadImage(this.loadedImageData[proxyId].imageId)
-          .then(() => {
-            if (this.state.selectedImage === proxyId) {
-              this.setState({
-                selectedImage: NO_IMAGE,
-                segmentEnabled: false,
-              });
-            }
-            delete this.loadedImageData[proxyId];
-          })
-          .catch(this.logError);
-      }
-    });
   }
 
   clearLog() {
