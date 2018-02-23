@@ -29,7 +29,7 @@ function registerITKReader() {
       name: `${extension.toUpperCase()} Reader`,
       vtkReader: vtkITKImageReader,
       readMethod: 'readAsArrayBuffer',
-      parseMethod: 'parseArrayBuffer',
+      parseMethod: 'parseAsArrayBuffer',
       fileNameMethod: 'setFileName',
     })
   );

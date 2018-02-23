@@ -16,7 +16,7 @@ import {
 import TubeTable from './TubeTable';
 import style from './SegmentTubeEditor.mcss';
 
-const NO_IMAGE = -999;
+const NO_PROXY = -1;
 const NO_TUBE = -1;
 const DEFAULT_SCALE = 2.0;
 
@@ -62,31 +62,31 @@ export default class SegmentTubeEditor extends React.Component {
     super(props);
 
     this.state = {
-      selectedImage: NO_IMAGE,
+      activeProxyId: NO_PROXY,
       serverLog: '',
       scaleText: String(DEFAULT_SCALE),
       segmentEnabled: false,
       tubes: [],
     };
 
-    // proxyId -> { imageId, tubeSource, tubeProxy }
-    this.loadedImageData = {};
+    // keyed by proxy ID
+    this.cachedStates = {};
     this.lifetimeUnsubscribes = [];
-    this.viewUnsubscribes = [];
-    this.tubeSourceUnsubscribe = null;
+    this.viewUnsubscribe = null;
     this.picker = vtkCellPicker.newInstance();
 
-    this.selectImage = this.selectImage.bind(this);
+    this.onActiveViewChanged = this.onActiveViewChanged.bind(this);
     this.onProxyRegistrationChange = this.onProxyRegistrationChange.bind(this);
+    this.setScale = this.setScale.bind(this);
     this.appendServerLog = this.appendServerLog.bind(this);
     this.clearLog = this.clearLog.bind(this);
     this.logError = this.logError.bind(this);
-    this.setScale = this.setScale.bind(this);
-    this.listenViewEvents = this.listenViewEvents.bind(this);
-    this.segmentAtClick = this.segmentAtClick.bind(this);
     this.saveTubes = this.saveTubes.bind(this);
     this.deleteTube = this.deleteTube.bind(this);
     this.showHideTube = this.showHideTube.bind(this);
+    this.segmentTube = this.segmentTube.bind(this);
+    this.segmentAtClick = this.segmentAtClick.bind(this);
+    this.selectProxy = this.selectProxy.bind(this);
   }
 
   componentDidMount() {
@@ -96,10 +96,21 @@ export default class SegmentTubeEditor extends React.Component {
       // This also has the issue of not detecting when a non-active source is
       // deleted...
       proxyManager.onProxyRegistrationChange(this.onProxyRegistrationChange),
-      proxyManager.onActiveViewChange(this.listenViewEvents),
+      proxyManager.onActiveViewChange(this.onActiveViewChanged),
       onServerStdout(this.appendServerLog),
       onServerStderr(this.appendServerLog),
     ];
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (
+      this.state.activeProxyId !== NO_PROXY &&
+      prevState.tubes !== this.state.tubes
+    ) {
+      const tubeProxy = this.cachedStates[this.state.activeProxyId].tubeProxy;
+      tubeProxy.getAlgo().setTubes(this.state.tubes);
+      this.props.proxyManager.renderAllViews();
+    }
   }
 
   componentWillUnmount() {
@@ -112,19 +123,28 @@ export default class SegmentTubeEditor extends React.Component {
     }
   }
 
+  onActiveViewChanged() {
+    if (this.viewUnsubscribe) {
+      this.viewUnsubscribe.unsubscribe();
+      this.viewUnsubscribe = null;
+    }
+
+    const view = this.props.proxyManager.getActiveView();
+    if (view.getProxyName() === 'View2D') {
+      this.viewUnsubscribe = onViewClick(view, this.segmentAtClick);
+    }
+  }
+
   onProxyRegistrationChange(changeInfo) {
     if (changeInfo.action === 'unregister') {
-      if (this.loadedImageData[changeInfo.proxyId]) {
+      if (this.cachedStates[changeInfo.proxyId]) {
         this.props.rpcClient
-          .unloadImage(this.loadedImageData[changeInfo.proxyId].imageId)
+          .unloadImage(this.cachedStates[changeInfo.proxyId].serverImageId)
           .then(() => {
-            if (this.state.selectedImage === changeInfo.proxyId) {
-              this.setState({
-                selectedImage: NO_IMAGE,
-                segmentEnabled: false,
-              });
+            if (this.state.activeProxyId === changeInfo.proxyId) {
+              this.selectProxy(NO_PROXY);
             }
-            delete this.loadedImageData[changeInfo.proxyId];
+            delete this.cachedStates[changeInfo.proxyId];
           })
           .catch(this.logError);
       }
@@ -138,42 +158,13 @@ export default class SegmentTubeEditor extends React.Component {
     }
   }
 
-  addTube(selectedImage, tube) {
-    if (selectedImage in this.loadedImageData) {
-      const imageData = this.loadedImageData[selectedImage];
-      imageData.tubeSource.addTube(tube);
-    }
-  }
+  // Logging
 
   appendServerLog(event, message) {
     console.log(message);
     this.setState(({ serverLog }) => ({
       serverLog: serverLog + message,
     }));
-  }
-
-  clearLog() {
-    this.setState({ serverLog: '' });
-  }
-
-  deleteTube(tubeUid) {
-    const imageData = this.loadedImageData[this.state.selectedImage];
-    return this.props.rpcClient
-      .deleteTube(imageData.imageId, tubeUid)
-      .then(() => imageData.tubeSource.deleteTube(tubeUid))
-      .catch(this.logError);
-  }
-
-  listenViewEvents() {
-    if (this.viewUnsubscribe) {
-      this.viewUnsubscribe.unsubscribe();
-      this.viewUnsubscribe = null;
-    }
-
-    const view = this.props.proxyManager.getActiveView();
-    if (view.getProxyName() === 'View2D') {
-      this.viewUnsubscribe = onViewClick(view, this.segmentAtClick);
-    }
   }
 
   logError(error) {
@@ -183,17 +174,81 @@ export default class SegmentTubeEditor extends React.Component {
     this.appendServerLog(null, message);
   }
 
+  clearLog() {
+    this.setState({ serverLog: '' });
+  }
+
+  // Tube operations
+
+  addTube(proxyId, tube) {
+    if (proxyId in this.cachedStates) {
+      const tubeObj = Object.assign(
+        {
+          points: [],
+          radii: [],
+          visible: true,
+        },
+        tube
+      );
+
+      if (proxyId === this.state.activeProxyId) {
+        this.setState(({ tubes }) => ({
+          tubes: [...tubes, tubeObj],
+        }));
+      } else {
+        this.cachedStates[proxyId].tubes.push(tubeObj);
+      }
+    }
+  }
+
+  deleteTube(tubeUid) {
+    const proxyId = this.state.activeProxyId;
+    const serverImageId = this.cachedStates[proxyId].serverImageId;
+    return this.props.rpcClient
+      .deleteTube(serverImageId, tubeUid)
+      .then(() => {
+        if (proxyId === this.state.activeProxyId) {
+          this.setState(({ tubes }) => ({
+            tubes: tubes.filter((t) => t.uid !== tubeUid),
+          }));
+        } else {
+          this.cachedStates[proxyId].tubes = this.cachedStates[
+            proxyId
+          ].tubes.filter((t) => t.uid !== tubeUid);
+        }
+      })
+      .catch(this.logError);
+  }
+
   saveTubes() {
     openSaveDialog()
       .then((filename) => {
         if (filename) {
           this.props.rpcClient.saveTubes(
-            this.loadedImageData[this.state.selectedImage].imageId,
+            this.cachedStates[this.state.activeProxyId].serverImageId,
             filename
           );
         }
       })
       .catch(this.logError);
+  }
+
+  showHideTube(tubeUid) {
+    this.setState(({ tubes }) => ({
+      tubes: tubes.map((t) => {
+        if (t.uid === tubeUid) {
+          t.visible = !t.visible;
+        }
+        return t;
+      }),
+    }));
+  }
+
+  segmentTube(imgId, ijk) {
+    const params = {
+      scale: Number(this.state.scaleText),
+    };
+    return this.props.rpcClient.segmentTube(imgId, ijk, params);
   }
 
   segmentAtClick({ view, clickX, clickY }) {
@@ -206,110 +261,98 @@ export default class SegmentTubeEditor extends React.Component {
 
     const selectedSource = this.props.proxyManager
       .getSources()
-      .find((s) => s.getProxyId() === this.state.selectedImage);
+      .find((s) => s.getProxyId() === this.state.activeProxyId);
     const representation = this.props.proxyManager.getRepresentation(
       selectedSource,
       view
     );
-    // safely assume the first actor for slices
+    // safely assume the first actor for slices, since we only listen on
+    // slice views.
     const selectedActor = representation.getActors()[0];
 
     // TODO maybe utilize the pick list?
     const { actors, cellIJK } = this.picker.get('actors', 'cellIJK');
+
     if (actors.indexOf(selectedActor) >= 0) {
-      // Cache the selected image b/c the image may be changed during segmentation.
-      const selectedImage = this.state.selectedImage;
-      const imgId = this.loadedImageData[selectedImage].imageId;
+      // Cache the selected image b/c the active image proxy may be changed
+      // during segmentation.
+      const proxyId = this.state.activeProxyId;
+      const imgId = this.cachedStates[proxyId].serverImageId;
 
       this.segmentTube(imgId, cellIJK)
         .then((tube) => {
           if (tube.uid !== NO_TUBE) {
-            this.addTube(selectedImage, tube);
+            this.addTube(proxyId, tube);
           }
         })
         .catch(this.logError);
     }
   }
 
-  segmentTube(imgId, ijk) {
-    const params = {
-      scale: Number(this.state.scaleText),
-    };
-    return this.props.rpcClient.segmentTube(imgId, ijk, params);
+  createTubeProxy(name) {
+    const tubeSource = vtkTubeSource.newInstance();
+    const tubeProxy = this.props.proxyManager.createProxy(
+      'Sources',
+      'TrivialProducer',
+      { name, type: 'vtkTubes' }
+    );
+
+    tubeProxy.setInputAlgorithm(tubeSource);
+    this.props.proxyManager.createRepresentationInAllViews(tubeProxy);
+    return tubeProxy;
   }
 
-  selectImage(proxyId) {
-    if (proxyId === this.state.selectedImage) {
+  selectProxy(proxyId) {
+    if (proxyId === this.state.activeProxyId) {
       return;
+    }
+
+    // save state
+    if (this.state.activeProxyId !== NO_PROXY) {
+      Object.assign(this.cachedStates[this.state.activeProxyId], {
+        tubes: this.state.tubes,
+      });
     }
 
     const source = this.props.proxyManager
       .getSources()
       .find((s) => s.getProxyId() === proxyId);
 
-    // unsubscribe any existing tube source
-    if (this.tubeSourceUnsubscribe) {
-      this.tubeSourceUnsubscribe.unsubscribe();
-      this.tubeSourceUnsubscribe = null;
-    }
-
     if (source) {
-      const imageId =
-        proxyId in this.loadedImageData
-          ? this.loadedImageData[proxyId].imageId
+      const serverImageId =
+        proxyId in this.cachedStates
+          ? this.cachedStates[proxyId].serverImageId
           : this.props.rpcClient.loadFile(source.getKey(FILEPATH_KEY));
 
-      Promise.resolve(imageId)
+      Promise.resolve(serverImageId)
         .then((id) => {
-          // create loaded image data for selected image
-          if (!(proxyId in this.loadedImageData)) {
-            const tubeSource = vtkTubeSource.newInstance();
-            const tubeProxy = this.props.proxyManager.createProxy(
-              'Sources',
-              'TrivialProducer',
-              {
-                name: `Tubes for ${source.getName()}`,
-                type: 'vtkTubes',
-              }
+          // create initial state for selected proxy
+          if (!(proxyId in this.cachedStates)) {
+            const tubeProxy = this.createTubeProxy(
+              `Tubes for ${source.getName()}`
             );
 
-            tubeProxy.setInputAlgorithm(tubeSource);
-            this.props.proxyManager.createRepresentationInAllViews(tubeProxy);
-
-            this.loadedImageData[proxyId] = {
-              imageId: id,
-              tubeSource,
+            this.cachedStates[proxyId] = {
+              serverImageId: id,
+              tubes: [],
               tubeProxy,
             };
           }
 
-          const tubeSource = this.loadedImageData[proxyId].tubeSource;
-
-          // update state and views every time the tubes change
-          this.tubeSourceUnsubscribe = tubeSource.onModified(() => {
-            this.setState({ tubes: tubeSource.getTubes() });
-            this.props.proxyManager.renderAllViews();
-          });
-
           this.setState({
-            selectedImage: proxyId,
+            activeProxyId: proxyId,
             segmentEnabled: true,
-            tubes: tubeSource.getTubes(),
+            tubes: this.cachedStates[proxyId].tubes,
           });
         })
         .catch(this.logError);
     } else {
       this.setState({
-        selectedImage: NO_IMAGE,
+        activeProxyId: NO_PROXY,
         segmentEnabled: false,
         tubes: [],
       });
     }
-  }
-
-  showHideTube(tubeUid) {
-    const tubeSrc = this.loadedImageData[this.state.selectedImage].tubeSource;
-    tubeSrc.setTubeVisibility(tubeUid, !tubeSrc.getTubeVisibility(tubeUid));
   }
 
   render() {
@@ -323,7 +366,7 @@ export default class SegmentTubeEditor extends React.Component {
       .getSources()
       .filter((s) => s.getType() === 'vtkImageData');
 
-    const options = [makeOption('(none)', NO_IMAGE)].concat(
+    const options = [makeOption('(none)', NO_PROXY)].concat(
       sources.map((source) => makeOption(source.getName(), source.getProxyId()))
     );
 
@@ -332,8 +375,8 @@ export default class SegmentTubeEditor extends React.Component {
         <section>
           <label>Selected image: </label>
           <select
-            value={this.state.selectedImage}
-            onChange={(ev) => this.selectImage(ev.target.value)}
+            value={this.state.activeProxyId}
+            onChange={(ev) => this.selectProxy(ev.target.value)}
           >
             {options}
           </select>
@@ -342,7 +385,7 @@ export default class SegmentTubeEditor extends React.Component {
           <label>Enable segmentation: </label>
           <input
             type="checkbox"
-            disabled={this.state.selectedImage === NO_IMAGE}
+            disabled={this.state.activeProxyId === NO_PROXY}
             checked={this.state.segmentEnabled}
             onChange={(ev) =>
               this.setState({ segmentEnabled: ev.target.checked })
@@ -353,7 +396,7 @@ export default class SegmentTubeEditor extends React.Component {
           <label>Scale: </label>
           <input
             type="text"
-            disabled={this.state.selectedImage === NO_IMAGE}
+            disabled={this.state.activeProxyId === NO_PROXY}
             value={this.state.scaleText}
             placeholder={DEFAULT_SCALE}
             onChange={(ev) => this.setScale(ev.target.value)}
@@ -368,7 +411,7 @@ export default class SegmentTubeEditor extends React.Component {
           <input
             type="button"
             value="Save"
-            disabled={this.state.selectedImage === NO_IMAGE}
+            disabled={this.state.activeProxyId === NO_PROXY}
             onClick={this.saveTubes}
           />
         </CollapsibleWidget>
