@@ -294,7 +294,7 @@ export default class SegmentTubeEditor extends React.Component {
     const tubeProxy = this.props.proxyManager.createProxy(
       'Sources',
       'TrivialProducer',
-      { name, type: 'vtkTubes' }
+      { name }
     );
 
     tubeProxy.setInputAlgorithm(tubeSource);

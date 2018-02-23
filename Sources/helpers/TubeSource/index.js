@@ -2,53 +2,66 @@ import macro from 'vtk.js/Sources/macro';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkPoints from 'vtk.js/Sources/Common/Core/Points';
 import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
+import vtkAppendPolyData from 'vtk.js/Sources/Filters/General/AppendPolyData';
+import vtkTubeFilter from 'vtk.js/Sources/Filters/General/TubeFilter';
+import { VaryRadius } from 'vtk.js/Sources/Filters/General/TubeFilter/Constants';
 import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 
-const { vtkErrorMacro } = macro;
+// const { vtkErrorMacro } = macro;
 
-function makePolyData(publicAPI, model) {
-  const visibleTubes = model.tubes.filter((tube) => tube.visible);
-
-  const totalPointLength = visibleTubes.reduce(
-    (length, tube) => length + tube.points.length,
-    0
-  );
+function createTubePolyData(tube) {
+  const { points, radii } = tube;
 
   const pd = vtkPolyData.newInstance();
-  const points = vtkPoints.newInstance({
+  const pts = vtkPoints.newInstance({
     dataType: VtkDataTypes.FLOAT,
     numberOfComponents: 3,
   });
-  points.setNumberOfPoints(totalPointLength);
+  pts.setNumberOfPoints(points.length);
 
-  const pointData = new Float32Array(3 * totalPointLength);
-  const lines = new Uint32Array(totalPointLength + visibleTubes.length);
+  const pointData = new Float32Array(3 * points.length);
+  const lines = new Uint32Array(points.length + 1);
 
-  for (let i = 0, pi = 0, li = 0; i < visibleTubes.length; ++i) {
-    lines[li++] = visibleTubes[i].points.length;
-    for (let j = 0; j < visibleTubes[i].points.length; ++j, ++pi) {
-      pointData[3 * pi + 0] = visibleTubes[i].points[j][0];
-      pointData[3 * pi + 1] = visibleTubes[i].points[j][1];
-      pointData[3 * pi + 2] = visibleTubes[i].points[j][2];
-      lines[li++] = pi;
-    }
+  lines[0] = points.length;
+  for (let i = 0; i < points.length; ++i) {
+    pointData[3 * i + 0] = points[i][0];
+    pointData[3 * i + 1] = points[i][1];
+    pointData[3 * i + 2] = points[i][2];
+    lines[i + 1] = i;
   }
 
-  const scalarsData = new Float32Array(
-    visibleTubes.reduce((combined, tube) => tube.radii.concat(combined), [])
-  );
+  const scalarsData = new Float32Array(radii);
   const scalars = vtkDataArray.newInstance({
     name: 'Radius',
     values: scalarsData,
   });
 
-  points.setData(pointData);
-  pd.setPoints(points);
+  pts.setData(pointData);
+  pd.setPoints(pts);
   pd.getLines().setData(lines);
   pd.getPointData().setScalars(scalars);
 
-  return pd;
+  const filter = vtkTubeFilter.newInstance({
+    capping: true,
+    radius: 1, // scaling factor
+    varyRadius: VaryRadius.VARY_RADIUS_BY_ABSOLUTE_SCALAR,
+    numberOfSides: 50,
+  });
+
+  filter.setInputArrayToProcess(0, 'Radius', 'PointData', 'Scalars');
+  filter.setInputData(pd);
+
+  return filter.getOutputData();
 }
+
+// Used as the dummy 0th input into vtkAppendPolyData
+const dummyPolyData = vtkPolyData.newInstance();
+dummyPolyData.setPoints(
+  vtkPoints.newInstance({
+    dataType: VtkDataTypes.FLOAT,
+    numberOfComponents: 3,
+  })
+);
 
 // ----------------------------------------------------------------------------
 // vtkTubeSource methods
@@ -59,56 +72,41 @@ function vtkTubeSource(publicAPI, model) {
   model.classHierarchy.push('vtkTubeSource');
 
   model.tubes = model.tubes.slice();
+  // keyed by tube.uid
+  model.polyData = {};
 
-  publicAPI.addTube = (tubeParam) => {
-    const tube = Object.assign(
-      {
-        points: [],
-        radii: [],
-        visible: true,
-      },
-      tubeParam
-    );
-
-    if (tube.points.length !== tube.radii.length) {
-      vtkErrorMacro('Added tube has mismatched points/radii lengths');
-      return null;
+  publicAPI.setTubes = (tubes) => {
+    if (tubes === model.tubes) {
+      return;
     }
-    model.tubes.push(tube);
 
-    publicAPI.modified();
-    return model.tubes.length - 1;
-  };
+    model.tubes = tubes;
 
-  publicAPI.getTubeVisibility = (tubeUid) => {
-    for (let i = 0; i < model.tubes.length; ++i) {
-      if (model.tubes[i].uid === tubeUid) {
-        return model.tubes[i].visible;
+    for (let i = 0; i < tubes.length; ++i) {
+      const tube = tubes[i];
+      if (!(tube.uid in model.polyData)) {
+        model.polyData[tube.uid] = createTubePolyData(tube);
       }
     }
-    return false;
-  };
 
-  publicAPI.setTubeVisibility = (tubeUid, visible) => {
-    for (let i = 0; i < model.tubes.length; ++i) {
-      if (
-        model.tubes[i].uid === tubeUid &&
-        model.tubes[i].visible !== visible
-      ) {
-        model.tubes[i].visible = visible;
-        publicAPI.modified();
-        break;
-      }
-    }
-  };
-
-  publicAPI.deleteTube = (tubeUid) => {
-    model.tubes = model.tubes.filter((tube) => tube.uid !== tubeUid);
     publicAPI.modified();
   };
 
   publicAPI.requestData = (inData, outData) => {
-    model.output[0] = makePolyData(publicAPI, model);
+    const appendPolyDataFilter = vtkAppendPolyData.newInstance();
+    // Set first input data to an empty polydata as a default.
+    appendPolyDataFilter.setInputData(dummyPolyData, 0);
+
+    const uids = Object.keys(model.polyData);
+    for (let i = 0; i < uids.length; ++i) {
+      if (model.tubes[i].visible) {
+        const pd = model.polyData[model.tubes[i].uid];
+        appendPolyDataFilter.addInputData(pd);
+      }
+    }
+
+    const outpd = appendPolyDataFilter.getOutputData();
+    model.output[0] = outpd;
   };
 }
 

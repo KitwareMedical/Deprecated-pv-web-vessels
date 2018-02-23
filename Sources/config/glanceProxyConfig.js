@@ -9,8 +9,6 @@ import vtkView from 'vtk.js/Sources/Proxy/Core/ViewProxy';
 import vtkVolumeRepresentationProxy from 'vtk.js/Sources/Proxy/Representations/VolumeRepresentationProxy';
 import vtkImageMarchingCubes from 'vtk.js/Sources/Filters/General/ImageMarchingCubes';
 
-import vtkTubeRepresentationProxy from '../helpers/TubeRepresentationProxy';
-
 import Palettes from './Palettes';
 
 export default {
@@ -401,9 +399,6 @@ export default {
           ],
         },
       },
-      Tubes: {
-        class: vtkTubeRepresentationProxy,
-      },
     },
     Views: {
       View3D: {
@@ -475,13 +470,11 @@ export default {
       vtkPolyData: { name: 'Geometry' },
       vtkImageData: { name: 'Volume' },
       vtkMolecule: { name: 'Molecule' },
-      vtkTubes: { name: 'Tubes' },
     },
     View2D: {
       vtkPolyData: { name: 'Geometry' },
       vtkImageData: { name: 'Slice' },
       vtkMolecule: { name: 'Molecule' },
-      vtkTubes: { name: 'Tubes' },
     },
   },
   filters: {
