@@ -130,7 +130,7 @@ export default class SegmentTubeEditor extends React.Component {
     }
 
     const view = this.props.proxyManager.getActiveView();
-    if (view.getProxyName() === 'View2D') {
+    if (view.getClassName() === 'vtkView2DProxy') {
       this.viewUnsubscribe = onViewClick(view, this.segmentAtClick);
     }
   }

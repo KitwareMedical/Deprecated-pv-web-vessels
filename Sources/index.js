@@ -14,8 +14,6 @@ import { ReactPropsHOC } from './helpers/ReactPropsHOC';
 
 import vtkITKImageReader from './helpers/ITKImageReader';
 
-import glanceConfig from './config/glanceProxyConfig';
-
 const { ElectronFileLoader, SegmentTubeEditor } = Controls;
 
 function registerITKReader() {
@@ -54,10 +52,10 @@ function main(mountPoint) {
   });
 
   // overwrite the existing FileLoader
-  Glance.registerControlTab('files', FileLoader, 5, 'file-text', true);
-  Glance.registerControlTab('segmentTube', SegmentEditor, 0, 'fork', true);
+  Glance.registerControlTab('files', FileLoader, 5, 'file-alt', true);
+  Glance.registerControlTab('tubes', SegmentEditor, 0, 'code-branch', true);
 
-  Glance.createViewer(mountPoint, glanceConfig);
+  Glance.createViewer(mountPoint);
 }
 
 main(document.querySelector('.root-container'));

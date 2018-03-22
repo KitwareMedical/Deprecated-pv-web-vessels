@@ -13,13 +13,14 @@
   "description": "",
   "dependencies": {
     "autoprefixer": "^7.2.5",
-    "electron": "^1.8.2",
+    "electron": "^1.8.4",
     "get-port": "^3.2.0",
     "itk": "^7.1.0",
-    "paraview-glance": "^1.1.10",
+    "paraview-glance": "^1.1.27",
+    "paraviewweb": "^3.1.2",
     "react": "^16.2.0",
     "react-dom": "^16.2.0",
-    "vtk.js": "^6.2.4",
+    "vtk.js": "^6.4.5",
     "wslink": "file:./Dependencies/wslink/js"
   },
   "devDependencies": {

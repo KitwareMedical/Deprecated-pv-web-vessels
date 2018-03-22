@@ -37,6 +37,8 @@ export default class ElectronFileLoader extends React.Component {
               source.setInputAlgorithm(reader, sourceType);
             }
 
+            source.activate();
+
             this.props.proxyManager.createRepresentationInAllViews(source);
             this.props.proxyManager.renderAllViews();
           }
