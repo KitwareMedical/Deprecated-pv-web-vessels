@@ -73,7 +73,7 @@ function vtkTubeSource(publicAPI, model) {
 
   model.tubes = model.tubes.slice();
   // keyed by tube.uid
-  model.polyData = {};
+  model.polyData = Object.create(null);
 
   publicAPI.setTubes = (tubes) => {
     if (tubes === model.tubes) {
@@ -82,12 +82,17 @@ function vtkTubeSource(publicAPI, model) {
 
     model.tubes = tubes;
 
+    const newPolyData = Object.create(null);
     for (let i = 0; i < tubes.length; ++i) {
       const tube = tubes[i];
       if (!(tube.uid in model.polyData)) {
-        model.polyData[tube.uid] = createTubePolyData(tube);
+        newPolyData[tube.uid] = createTubePolyData(tube);
+      } else {
+        newPolyData[tube.uid] = model.polyData[tube.uid];
       }
     }
+
+    model.polyData = newPolyData;
 
     publicAPI.modified();
   };
